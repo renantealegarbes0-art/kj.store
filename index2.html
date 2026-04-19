@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Black jack System</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #021a12;
+  color: white;
+  text-align: center;
+}
+
+.screen { display:none; }
+.active { display:block; }
+
+input {
+  padding:8px;
+  margin:5px;
+  border:none;
+  border-radius:6px;
+}
+
+button {
+  padding:10px 15px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+  background:gold;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+/* TABLE */
+.table {
+  position:relative;
+  margin:30px auto;
+  width:750px;
+  height:420px;
+  background:radial-gradient(circle,#0f6b43,#063d27);
+  border-radius:50%/45%;
+  border:10px solid #c9a44c;
+}
+
+/* Dealer / Player */
+.dealer,.player {
+  position:absolute;
+  width:100%;
+}
+.dealer { top:30px; }
+.player { bottom:30px; }
+
+/* Cards */
+.cards { margin:10px; }
+
+.card {
+  display:inline-block;
+  width:50px;
+  height:70px;
+  line-height:70px;
+  background:white;
+  color:black;
+  border-radius:8px;
+  margin:4px;
+  font-weight:bold;
+}
+
+.card.red { color:red; }
+
+.card.back {
+  background:repeating-linear-gradient(
+    45deg,#333,#333 6px,#555 6px,#555 12px
+  );
+  color:transparent;
+}
+
+/* Center controls */
+.controls {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+}
+
+.panel {
+  background:#123;
+  padding:10px;
+  margin:10px;
+  border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="screen active">
+  <h2>Login</h2>
+  <input id="loginUser" placeholder="Username"><br>
+  <input id="loginPass" type="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+  <p>No account?</p>
+  <button onclick="showRegister()">Register</button>
+</div>
+
+<!-- REGISTER -->
+<div id="registerScreen" class="screen">
+  <h2>Register</h2>
+  <input id="regUser" placeholder="Username"><br>
+  <input id="regPass" type="password" placeholder="Password"><br>
+  <button onclick="register()">Create Account</button>
+  <p id="regMsg"></p>
+  <button onclick="showLogin()">Back</button>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+
+  <h2>🃏 Blackjack Casino</h2>
+  <p>Player: <b id="username"></b></p>
+
+  <div class="table">
+
+    <div class="dealer">
+      <h3>Dealer</h3>
+      <div id="dealerCards" class="cards"></div>
+      <p id="dealerSum"></p>
+    </div>
+
+    <div class="controls">
+      <p id="message"></p>
+
+      <button onclick="startGame()">Deal</button>
+      <button onclick="hit()">Hit</button>
+      <button onclick="stand()">Stand</button>
+
+      <p>💰 $<span id="money">0</span></p>
+    </div>
+
+    <div class="player">
+      <h3>You</h3>
+      <div id="playerCards" class="cards"></div>
+      <p id="playerSum"></p>
+    </div>
+
+  </div>
+
+  <button onclick="logout()">Logout</button>
+</div>
+
+<!-- ADMIN -->
+<div id="adminScreen" class="screen">
+
+  <h2>👑 Admin Panel</h2>
+  <p>Owner System</p>
+
+  <div id="userList"></div>
+
+  <button onclick="logout()">Logout</button>
+</div>
+
+<script>
+
+/* ================= USERS ================= */
+
+function getUsers(){
+  return JSON.parse(localStorage.getItem("users") || "{}");
+}
+
+function saveUsers(u){
+  localStorage.setItem("users", JSON.stringify(u));
+}
+
+/* REGISTER */
+function register(){
+  let u = regUser.value.trim();
+  let p = regPass.value.trim();
+
+  let users = getUsers();
+
+  if(!u || !p){
+    regMsg.textContent="Fill all fields!";
+    return;
+  }
+
+  if(users[u]){
+    regMsg.textContent="User exists!";
+    return;
+  }
+
+  users[u] = {password:p, money:0};
+  saveUsers(users);
+
+  regMsg.textContent="Registered ($0 balance)";
+}
+
+/* LOGIN */
+let currentUser=null;
+
+function login(){
+  let u = loginUser.value.trim();
+  let p = loginPass.value.trim();
+
+  let users = getUsers();
+
+  // 👑 ADMIN LOGIN
+  if(u==="admin" && p==="admin09391523788kj"){
+    currentUser="admin";
+    showAdmin();
+    return;
+  }
+
+  if(!users[u] || users[u].password!==p){
+    alert("Invalid login");
+    return;
+  }
+
+  currentUser=u;
+  showGame();
+}
+
+/* SCREEN */
+function showLogin(){switchScreen("loginScreen")}
+function showRegister(){switchScreen("registerScreen")}
+function showGame(){
+  switchScreen("gameScreen");
+  username.textContent=currentUser;
+  updateMoney();
+}
+function showAdmin(){
+  switchScreen("adminScreen");
+  loadUsers();
+}
+
+function switchScreen(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+/* MONEY */
+function updateMoney(){
+  let u=getUsers();
+  money.textContent=u[currentUser].money;
+}
+
+function changeMoney(v){
+  let u=getUsers();
+  u[currentUser].money+=v;
+  saveUsers(u);
+  updateMoney();
+}
+
+/* ================= ADMIN ================= */
+
+function loadUsers(){
+  let users=getUsers();
+  let box=document.getElementById("userList");
+  box.innerHTML="";
+
+  for(let name in users){
+    let div=document.createElement("div");
+    div.className="panel";
+
+    div.innerHTML=`
+      <b>${name}</b> | 💰 $${users[name].money}
+      <br>
+      <input id="amt_${name}" type="number" placeholder="Amount">
+      <button onclick="applyMoney('${name}')">Apply</button>
+    `;
+
+    box.appendChild(div);
+  }
+}
+
+function applyMoney(user){
+  let users=getUsers();
+  let input=document.getElementById("amt_"+user);
+
+  let amt=Number(input.value);
+
+  if(isNaN(amt)) return;
+
+  users[user].money+=amt;
+
+  if(users[user].money<0) users[user].money=0;
+
+  saveUsers(users);
+  loadUsers();
+}
+
+/* LOGOUT */
+function logout(){
+  currentUser=null;
+  showLogin();
+}
+
+/* ================= BLACKJACK ================= */
+
+let deck=[], player=[], dealer=[], active=false;
+
+function createDeck(){
+  const s=["♠","♥","♦","♣"];
+  const v=["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+  deck=[];
+
+  for(let x of s){
+    for(let y of v){
+      deck.push({v:y,s:x});
+    }
+  }
+
+  deck.sort(()=>Math.random()-0.5);
+}
+
+function val(c){
+  if(["J","Q","K"].includes(c.v)) return 10;
+  if(c.v==="A") return 11;
+  return +c.v;
+}
+
+function sum(cards){
+  let t=0,a=0;
+  for(let c of cards){
+    t+=val(c);
+    if(c.v==="A") a++;
+  }
+  while(t>21 && a--) t-=10;
+  return t;
+}
+
+function draw(){return deck.pop();}
+
+function render(cards, el, hide=false){
+  let box=document.getElementById(el);
+  box.innerHTML="";
+
+  cards.forEach((c,i)=>{
+    let d=document.createElement("div");
+    d.className="card";
+
+    if(hide && i===0){
+      d.classList.add("back");
+      d.textContent="?";
+    }else{
+      d.textContent=c.v+c.s;
+      if(c.s==="♥"||c.s==="♦") d.classList.add("red");
+    }
+
+    box.appendChild(d);
+  });
+}
+
+function startGame(){
+  createDeck();
+  player=[draw(),draw()];
+  dealer=[draw(),draw()];
+  active=true;
+  message.textContent="Your move";
+  update();
+}
+
+function update(){
+  render(player,"playerCards");
+  render(dealer,"dealerCards",active);
+
+  playerSum.textContent="Sum: "+sum(player);
+  dealerSum.textContent=active?"Sum: ?":"Sum: "+sum(dealer);
+}
+
+function hit(){
+  if(!active) return;
+  player.push(draw());
+  if(sum(player)>21) end("Busted!",-10);
+  update();
+}
+
+function stand(){
+  if(!active) return;
+
+  while(sum(dealer)<17){
+    dealer.push(draw());
+  }
+
+  let p=sum(player), d=sum(dealer);
+
+  if(d>21||p>d) end("You win!",10);
+  else if(p===d) end("Draw!",0);
+  else end("Dealer wins!",-10);
+
+  update();
+}
+
+function end(msg, m){
+  active=false;
+  message.textContent=msg;
+  changeMoney(m);
+}
+
+</script>
+
+</body>
+</html>
